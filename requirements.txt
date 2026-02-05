@@ -1,7 +1,82 @@
-name: app_environment
-channels:
-  - snowflake
-dependencies:
-  - python=3.11.*
-  - snowflake-snowpark-python=
-  - streamlit=
+# ----------------------------------------
+# Imports
+# ----------------------------------------
+import streamlit as st
+import pandas as pd
+import requests
+from snowflake.snowpark.context import get_active_session
+from snowflake.snowpark.functions import col
+
+
+# ----------------------------------------
+# Snowflake session (SiS)
+# ----------------------------------------
+session = get_active_session()
+
+
+# ----------------------------------------
+# App UI
+# ----------------------------------------
+st.title("🥤 Customise Your Smoothie 🥤")
+st.write("Choose the fruits you want in your custom Smoothie!")
+
+
+# ----------------------------------------
+# Load fruit options (with SEARCH_ON)
+# ----------------------------------------
+fruit_rows = (
+    session
+    .table("SMOOTHIES.PUBLIC.FRUIT_OPTIONS")
+    .select(col("FRUIT_NAME"), col("SEARCH_ON"))
+    .collect()
+)
+
+pd_df = pd.DataFrame(fruit_rows)
+
+
+# ----------------------------------------
+# Fruit selector
+# ----------------------------------------
+fruit_list = pd_df['FRUIT_NAME'].tolist()
+
+fruit_chosen = st.selectbox(
+    "Choose a fruit:",
+    fruit_list
+)
+
+
+# ----------------------------------------
+# Get SEARCH_ON value
+# ----------------------------------------
+search_on = pd_df.loc[
+    pd_df['FRUIT_NAME'] == fruit_chosen,
+    'SEARCH_ON'
+].iloc[0]
+
+st.write(
+    'The search value for ',
+    fruit_chosen,
+    ' is ',
+    search_on,
+    '.'
+)
+
+
+# ----------------------------------------
+# BACK AND FORTH – PART B (API TEST)
+# ----------------------------------------
+st.divider()
+st.subheader("🍉 SmoothieFroot API Test")
+
+try:
+    response = requests.get(
+        f"https://my.smoothiefroot.com/api/fruit/{search_on}",
+        timeout=5
+    )
+
+    st.text(f"API Status Code: {response.status_code}")
+    st.json(response.json())
+
+except requests.exceptions.RequestException as e:
+    st.warning("⚠️ External API calls are blocked in Snowflake (expected).")
+    st.text(str(e))
